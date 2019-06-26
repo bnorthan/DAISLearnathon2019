@@ -1,3 +1,4 @@
+
 package com.tnia.imagej;
 
 import net.imagej.ImageJ;
@@ -17,12 +18,13 @@ import sc.fiji.simplifiedio.SimplifiedIO;
  * Use Neighborhoods to create a MaxFilter
  */
 public class MaxFilterWIthNeighborhoods {
+
 	public static void main(String[] args) {
 		final ImageJ ij = new ImageJ();
 		ij.ui().showUI();
 
-		final Img<UnsignedByteType> img = SimplifiedIO
-				.openImage("../../images/blobs.tif");
+		final Img<UnsignedByteType> img = SimplifiedIO.openImage(
+			"../../images/blobs.tif");
 		ij.ui().show("img", img);
 
 		final Img<UnsignedByteType> a = img.factory().create(img);
@@ -32,45 +34,52 @@ public class MaxFilterWIthNeighborhoods {
 		final RectangleShape shape = new RectangleShape(8, false);
 
 		final RandomAccessible<Neighborhood<UnsignedByteType>> neighborhoods = shape
-				.neighborhoodsRandomAccessible(Views.extendBorder(img));
+			.neighborhoodsRandomAccessible(Views.extendBorder(img));
 
-		// a) iterate over region
-		long start = System.nanoTime();
-		LoopBuilder.setImages(Views.interval(neighborhoods, a), a).multiThreaded().forEachPixel((neighborhood, o) -> {
+		long start, end;
 
-			o.set(neighborhood.firstElement());
-			neighborhood.forEach(t -> {
-				final int v = t.get();
-				if (v > o.get())
-					o.set(v);
-			});
+		for (int trial = 0; trial < 5; trial++) {
 
-		});
-		long end = System.nanoTime();
-		System.out.println("a) time ms " + (end - start) / 10e6);
+			// a) iterate over region
+			start = System.nanoTime();
+			LoopBuilder.setImages(Views.interval(neighborhoods, a), a).multiThreaded()
+				.forEachPixel((neighborhood, o) -> {
 
-		start = System.nanoTime();
-		// b) use ops through ij (slow because of ops matching)
-		LoopBuilder.setImages(Views.interval(neighborhoods, b), b).multiThreaded().forEachPixel((neighborhood, o) -> {
+					o.set(neighborhood.firstElement());
+					neighborhood.forEach(t -> {
+						final int v = t.get();
+						if (v > o.get()) o.set(v);
+					});
 
-			ij.op().stats().max(o, neighborhood);
-		});
-		end = System.nanoTime();
-		System.out.println("b) time ms " + (end - start) / 10e6);
+				});
+			end = System.nanoTime();
+			System.out.println("trial "+trial+" a) time ms " + (end - start) / 10e6);
 
-		// c) match op then use
-		start = System.nanoTime();
-		UnaryComputerOp maxOp = Computers.unary(ij.op(), Ops.Stats.Max.class, c.firstElement(), img);
-		LoopBuilder.setImages(Views.interval(neighborhoods, c), c).multiThreaded().forEachPixel((neighborhood, o) -> {
+			start = System.nanoTime();
+			// b) use ops through ij (slow because of ops matching)
+			LoopBuilder.setImages(Views.interval(neighborhoods, b), b).multiThreaded()
+				.forEachPixel((neighborhood, o) -> {
 
-			maxOp.compute(neighborhood, o);
-		});
-		end = System.nanoTime();
-		System.out.println("c) time ms " + (end - start) / 10e6);
+					ij.op().stats().max(o, neighborhood);
+				});
+			end = System.nanoTime();
+			System.out.println("trial "+trial+" b) time ms " + (end - start) / 10e6);
 
+			// c) match op then use
+			start = System.nanoTime();
+			UnaryComputerOp maxOp = Computers.unary(ij.op(), Ops.Stats.Max.class, c
+				.firstElement(), img);
+			LoopBuilder.setImages(Views.interval(neighborhoods, c), c).multiThreaded()
+				.forEachPixel((neighborhood, o) -> {
+
+					maxOp.compute(neighborhood, o);
+				});
+			end = System.nanoTime();
+			System.out.println("trial "+trial+" c) time ms " + (end - start) / 10e6);
+			System.out.println();
+		}
 		ij.ui().show("output", a);
 		ij.ui().show("output", b);
 		ij.ui().show("output", c);
 	}
 }
-
